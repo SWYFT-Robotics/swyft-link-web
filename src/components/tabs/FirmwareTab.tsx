@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useMotorStore } from '../../store/motorStore'
 import { flashFirmware, isDFUSupported, type DFUProgress } from '../../api/WebDFU'
-import { Upload, RefreshCw, AlertCircle, CheckCircle, Loader2, Zap, Info } from 'lucide-react'
+import { Upload, RefreshCw, AlertCircle, CheckCircle, Loader2, Zap, Info, Usb } from 'lucide-react'
 import clsx from 'clsx'
 
 export function FirmwareTab() {
@@ -26,22 +26,38 @@ export function FirmwareTab() {
     setDfuSent(false)
 
     try {
-      // Step 1: Put device in DFU mode via serial
-      setDfuProgress({ phase: 'connecting', progress: 2, message: 'Sending DFU command...' })
+      // Step 1: Put device in DFU mode via serial command
       await send('DFU')
       setDfuSent(true)
 
-      // Step 2: Wait for device to enter DFU mode (it reboots)
-      setDfuProgress({ phase: 'connecting', progress: 5, message: 'Waiting for device to enter DFU mode...' })
-      await new Promise(r => setTimeout(r, 2500))
-
-      // Step 3: Disconnect serial (it's gone now anyway)
+      // Step 2: Disconnect serial — the port disappears when DFU mode starts
       await disconnect()
 
-      // Step 4: Flash via WebUSB DFU
+      // Step 3: Wait for STM32 to reset and enumerate as DFU device (~1.5s)
+      setDfuProgress({ phase: 'connecting', progress: 5, message: 'Waiting for device to enter DFU mode...' })
+      await new Promise(r => setTimeout(r, 1500))
+
+      // Step 4: Flash via WebUSB DFU — browser will show device picker
+      setDfuProgress({ phase: 'connecting', progress: 8, message: 'Select the STM32 BOOTLOADER device in the browser dialog...' })
       const binData = await firmwareFile.arrayBuffer()
       await flashFirmware(binData, (p) => setDfuProgress(p))
 
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+      setDfuProgress(null)
+    }
+  }
+
+  // Flash without sending DFU command — device is already in DFU mode
+  const handleFlashDFUDirect = async () => {
+    if (!firmwareFile) return
+    setError(null)
+    setDfuProgress({ phase: 'connecting', progress: 0, message: 'Connecting to DFU device...' })
+    try {
+      setDfuProgress({ phase: 'connecting', progress: 5, message: 'Select the STM32 BOOTLOADER device in the browser dialog...' })
+      const binData = await firmwareFile.arrayBuffer()
+      await flashFirmware(binData, (p) => setDfuProgress(p))
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
@@ -123,17 +139,32 @@ export function FirmwareTab() {
               </div>
             )}
 
-            <button
-              onClick={handleFlash}
-              disabled={!firmwareFile || !webUsbSupported}
-              className={clsx('w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all',
-                (firmwareFile && webUsbSupported)
-                  ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-lg shadow-sky-500/20'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-              )}>
-              <Zap className="w-4 h-4" />
-              {webUsbSupported ? 'Flash Firmware' : 'WebUSB required (Chrome/Edge)'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleFlash}
+                disabled={!firmwareFile || !webUsbSupported}
+                title="Sends DFU command via serial, then flashes via WebUSB"
+                className={clsx('flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all',
+                  (firmwareFile && webUsbSupported)
+                    ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-lg shadow-sky-500/20'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                )}>
+                <Zap className="w-4 h-4" />
+                {webUsbSupported ? 'Flash Firmware' : 'WebUSB required (Chrome/Edge)'}
+              </button>
+              <button
+                onClick={handleFlashDFUDirect}
+                disabled={!firmwareFile || !webUsbSupported}
+                title="Device already in DFU mode — connect directly via WebUSB"
+                className={clsx('flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm transition-all',
+                  (firmwareFile && webUsbSupported)
+                    ? 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                )}>
+                <Usb className="w-4 h-4" />
+                <span className="text-xs">Already in DFU</span>
+              </button>
+            </div>
           </>
         )}
 
