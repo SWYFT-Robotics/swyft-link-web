@@ -90,6 +90,7 @@ function parseCanStatus(line: string): Partial<CanStatus> | null {
 interface MotorStore {
   conn: SerialConnection | null
   connectionState: ConnectionState
+  connectError: string | null
   status: MotorStatus | null
   canStatus: CanStatus
   log: string[]
@@ -105,6 +106,7 @@ interface MotorStore {
 export const useMotorStore = create<MotorStore>((set, get) => ({
   conn: null,
   connectionState: 'disconnected',
+  connectError: null,
   status: null,
   canStatus: {
     deviceType: 2, manufacturer: 18, deviceNumber: 0,
@@ -115,8 +117,10 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   firmwareVersion: null,
   firmwareBuildDate: null,
 
+  connectError: null as string | null,
+
   connect: async () => {
-    set({ connectionState: 'connecting' })
+    set({ connectionState: 'connecting', connectError: null })
     const conn = new SerialConnection({
       baudRate: 115200,
       onStateChange: (connectionState) => set({ connectionState }),
@@ -150,8 +154,13 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
       await conn.send('VERSION')
       await conn.send('CANSTATUS')
     } catch (e) {
-      // User cancelled or error - reset state
-      set({ conn: null, connectionState: 'disconnected' })
+      const msg = e instanceof Error ? e.message : String(e)
+      const isCancel = msg.includes('No port selected') || msg.includes('AbortError') || msg.includes('cancelled')
+      set({
+        conn: null,
+        connectionState: 'disconnected',
+        connectError: isCancel ? null : msg
+      })
     }
   },
 

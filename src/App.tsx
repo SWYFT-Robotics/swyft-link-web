@@ -21,7 +21,7 @@ const isSupported = SerialConnection.isSupported()
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('control')
-  const { connectionState, status, connect, disconnect } = useMotorStore()
+  const { connectionState, status, connectError, connect, disconnect } = useMotorStore()
 
   const isConnected = connectionState === 'connected'
   const isConnecting = connectionState === 'connecting'
@@ -131,6 +131,14 @@ export default function App() {
               <div className="inline-flex items-center gap-2 px-5 py-3 bg-amber-500/10 border border-amber-500/25 text-amber-400 rounded-xl text-sm">
                 <AlertCircle className="w-4 h-4" />
                 WebSerial requires Chrome 89+ or Edge 89+
+              </div>
+            )}
+
+            {connectError && (
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/25 text-red-400 rounded-xl text-sm text-left">
+                <div className="font-semibold mb-1">Connection failed:</div>
+                <div className="font-mono text-xs">{connectError}</div>
+                <div className="mt-2 text-xs text-slate-500">Check that the device is plugged in and not open in another app.</div>
               </div>
             )}
 
