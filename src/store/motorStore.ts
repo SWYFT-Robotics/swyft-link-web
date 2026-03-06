@@ -164,7 +164,8 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
       set({ conn })
       await conn.connect()
       setQueueConnection(conn)
-      // Request version and status on connect (queued with 80ms spacing)
+      // Allow device to stabilize after connect, then request version and status
+      await new Promise(r => setTimeout(r, 250))
       await enqueueCommand('VERSION')
       await enqueueCommand('CANSTATUS')
     } catch (e) {

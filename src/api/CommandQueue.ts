@@ -1,6 +1,6 @@
 /**
  * Module-level command queue - avoids Zustand state race conditions.
- * Commands are spaced 80ms apart to prevent USB CDC buffer merging.
+ * Commands are spaced 150ms apart to prevent USB CDC buffer merging/corruption.
  */
 import type { SerialConnection } from './SerialConnection'
 
@@ -23,7 +23,7 @@ async function flush() {
   while (queue.length > 0 && conn) {
     const cmd = queue.shift()!
     try { await conn.send(cmd) } catch { /* ignore */ }
-    if (queue.length > 0) await delay(80)
+    if (queue.length > 0) await delay(150)
   }
   busy = false
 }
