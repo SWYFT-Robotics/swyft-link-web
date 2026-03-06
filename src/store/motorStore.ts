@@ -116,6 +116,7 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   firmwareBuildDate: null,
 
   connect: async () => {
+    set({ connectionState: 'connecting' })
     const conn = new SerialConnection({
       baudRate: 115200,
       onStateChange: (connectionState) => set({ connectionState }),
@@ -130,21 +131,28 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
         }
 
         set(s => {
-          const log = [...s.log.slice(-499), line]
+          const log = [...s.log.slice(-499), `< ${line}`]
           let fv = s.firmwareVersion
           let fb = s.firmwareBuildDate
           const clean = line.startsWith('< ') ? line.substring(2) : line
           if (clean.startsWith('Version:')) fv = clean.substring(8).trim()
+          else if (line.startsWith('Version:')) fv = line.substring(8).trim()
           if (clean.startsWith('Build:')) fb = clean.substring(6).trim()
+          else if (line.startsWith('Build:')) fb = line.substring(6).trim()
           return { log, firmwareVersion: fv, firmwareBuildDate: fb }
         })
       }
     })
-    set({ conn })
-    await conn.connect()
-    // Request status and version
-    await conn.send('VERSION')
-    await conn.send('CANSTATUS')
+    try {
+      set({ conn })
+      await conn.connect()
+      // Request status and version on connect
+      await conn.send('VERSION')
+      await conn.send('CANSTATUS')
+    } catch (e) {
+      // User cancelled or error - reset state
+      set({ conn: null, connectionState: 'disconnected' })
+    }
   },
 
   disconnect: async () => {
