@@ -4,23 +4,22 @@ import { ControlTab } from './components/tabs/ControlTab'
 import { CanTab } from './components/tabs/CanTab'
 import { FirmwareTab } from './components/tabs/FirmwareTab'
 import { LogTab } from './components/tabs/LogTab'
-import { GraphsTab } from './components/tabs/GraphsTab'
+// GraphsTab removed — graphs are now embedded in ControlTab
 import { InputTab } from './components/tabs/InputTab'
 import { AboutTab } from './components/tabs/AboutTab'
 import { ConfigTab } from './components/tabs/ConfigTab'
 import { SerialConnection } from './api/SerialConnection'
-import { Zap, Wifi, WifiOff, Loader2, Radio, Terminal, Cpu, AlertCircle, LineChart, Sliders, Info, Upload, CheckCircle, ChevronDown, ChevronUp, Usb, Settings } from 'lucide-react'
+import { Zap, Wifi, WifiOff, Loader2, Radio, Terminal, Cpu, AlertCircle, Sliders, Info, Upload, CheckCircle, ChevronDown, ChevronUp, Usb, Settings } from 'lucide-react'
 import clsx from 'clsx'
 
 const TABS = [
-  { id: 'control', label: 'Control', icon: Zap },
-  { id: 'graphs', label: 'Graphs', icon: LineChart },
-  { id: 'config', label: 'Config', icon: Settings },
-  { id: 'can', label: 'CAN', icon: Radio },
-  { id: 'input', label: 'Input', icon: Sliders },
-  { id: 'firmware', label: 'Firmware', icon: Cpu },
-  { id: 'log', label: 'Log', icon: Terminal },
-  { id: 'about', label: 'About', icon: Info },
+  { id: 'control',  label: 'Control',  icon: Zap      },
+  { id: 'config',   label: 'Config',   icon: Settings },
+  { id: 'can',      label: 'CAN',      icon: Radio    },
+  { id: 'input',    label: 'Input',    icon: Sliders  },
+  { id: 'firmware', label: 'Firmware', icon: Cpu      },
+  { id: 'log',      label: 'Log',      icon: Terminal },
+  { id: 'about',    label: 'About',    icon: Info     },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -382,7 +381,6 @@ export default function App() {
           {/* Tab content */}
           <div className="flex-1 pb-4">
             {activeTab === 'control' && <ControlTab />}
-            {activeTab === 'graphs' && <GraphsTab />}
             {activeTab === 'config' && <ConfigTab />}
             {activeTab === 'can' && <CanTab />}
             {activeTab === 'input' && <InputTab />}
