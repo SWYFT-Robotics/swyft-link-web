@@ -1,3 +1,18 @@
+// WebSerial type declarations
+declare global {
+  interface Navigator {
+    serial: {
+      requestPort(options?: { filters?: { usbVendorId?: number; usbProductId?: number }[] }): Promise<SerialPort>
+    }
+  }
+  interface SerialPort {
+    open(options: { baudRate: number }): Promise<void>
+    close(): Promise<void>
+    readable: ReadableStream<Uint8Array> | null
+    writable: WritableStream<Uint8Array> | null
+  }
+}
+
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 export interface SerialOptions {

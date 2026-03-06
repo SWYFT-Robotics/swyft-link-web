@@ -4,7 +4,7 @@ import { Upload, RefreshCw, CheckCircle, AlertCircle, Loader2 } from 'lucide-rea
 import clsx from 'clsx'
 
 export function FirmwareTab() {
-  const { send, firmwareVersion, firmwareBuildDate, log } = useMotorStore()
+  const { send, firmwareVersion, firmwareBuildDate } = useMotorStore()
   const [firmwareFile, setFirmwareFile] = useState<File | null>(null)
   const [status, setStatus] = useState<'idle' | 'updating' | 'done' | 'error'>('idle')
   const [updateLog, setUpdateLog] = useState<string[]>([])

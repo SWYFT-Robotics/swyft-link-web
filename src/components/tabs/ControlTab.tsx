@@ -19,9 +19,8 @@ function StatusTile({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Slider({ label, unit, value, min, max, onChange, color = 'sky' }:
+function Slider({ label, unit, value, min, max, onChange }:
   { label: string; unit: string; value: number; min: number; max: number; onChange: (v: number) => void; color?: string }) {
-  const pct = ((value - min) / (max - min)) * 100
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-baseline">
