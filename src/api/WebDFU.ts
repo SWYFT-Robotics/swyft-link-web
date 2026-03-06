@@ -17,11 +17,13 @@ const DFU_CLRSTATUS = 0x04
 const DFU_GETSTATE  = 0x05
 const DFU_ABORT     = 0x06
 
-// DFU states
-const STATE_DFU_IDLE      = 2
-const STATE_DFU_DNLOAD_IDLE = 5
-const STATE_DFU_MANIFEST  = 7
-const STATE_DFU_ERROR     = 10
+// DFU states (DFU 1.1 spec)
+const STATE_DFU_IDLE             = 2
+const STATE_DFU_DNLOAD_IDLE      = 5
+const STATE_DFU_MANIFEST_SYNC    = 6
+const STATE_DFU_MANIFEST         = 7
+const STATE_DFU_MANIFEST_WAIT_RESET = 8
+const STATE_DFU_ERROR            = 10
 
 export type DFUProgress = {
   phase: 'connecting' | 'erasing' | 'flashing' | 'done' | 'error'
@@ -162,14 +164,52 @@ export async function flashFirmware(
     })
   }
 
-  // Send zero-length DNLOAD to trigger manifest (leave DFU mode)
-  onProgress({ phase: 'flashing', progress: 96, message: 'Finishing...' })
+  // Zero-length DNLOAD at block 0 signals end of transfer → starts manifest phase
+  onProgress({ phase: 'flashing', progress: 96, message: 'Sending manifest command...' })
   await dfuDownload(device, iface, 0, new Uint8Array(0))
 
-  // Let device reset
-  await new Promise(r => setTimeout(r, 1500))
+  // CRITICAL: calling GETSTATUS after zero-length DNLOAD is what triggers the STM32
+  // bootloader to execute the manifest (program flash, verify CRC).
+  // The device transitions: dfuDNLOAD-IDLE → dfuMANIFEST-SYNC → dfuMANIFEST
+  //                       → dfuMANIFEST-WAIT-RESET
+  // At dfuMANIFEST-WAIT-RESET the bootloader has finished and waits for USB reset.
+  onProgress({ phase: 'flashing', progress: 97, message: 'Programming flash...' })
 
+  const deadline = Date.now() + 15000
+  while (Date.now() < deadline) {
+    let s
+    try {
+      s = await dfuGetStatus(device, iface)
+    } catch {
+      // Device may have already reset and dropped the USB connection — that's fine
+      break
+    }
+
+    if (s.state === STATE_DFU_MANIFEST_WAIT_RESET) {
+      // Device finished programming; closing USB triggers the reset
+      break
+    }
+    if (s.state === STATE_DFU_IDLE) {
+      // Some bootloaders return to idle after manifest (bitManifestationTolerant=1)
+      break
+    }
+    if (s.state === STATE_DFU_ERROR) {
+      await dfuClearStatus(device, iface)
+      throw new Error('DFU error during manifest')
+    }
+
+    // Still in MANIFEST_SYNC (6) or MANIFEST (7) — wait the requested poll delay
+    const wait = s.pollTimeout > 0 ? s.pollTimeout : 200
+    await new Promise(r => setTimeout(r, wait))
+  }
+
+  // Close the USB connection — the STM32 bootloader detects the USB disconnect
+  // in dfuMANIFEST-WAIT-RESET and performs a system reset into the application.
+  onProgress({ phase: 'flashing', progress: 99, message: 'Rebooting device...' })
   try { await device.close() } catch { /* ignore */ }
 
-  onProgress({ phase: 'done', progress: 100, message: 'Firmware flashed! Device is rebooting...' })
+  // Give the device a moment to reset and re-enumerate as CDC serial
+  await new Promise(r => setTimeout(r, 1000))
+
+  onProgress({ phase: 'done', progress: 100, message: 'Done! Device rebooted with new firmware.' })
 }
