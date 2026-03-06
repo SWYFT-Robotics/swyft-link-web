@@ -49,20 +49,27 @@ export function ControlTab() {
 
   const canMaster = status?.canMaster ?? false
 
+  // Motor state commands: firmware uses STOP, CALI, and SET state <n>
+  const setMotorState = useCallback(async (state: number) => {
+    if (state === 0) await send('STOP')
+    else if (state === 1) await send('CALI')
+    else await send(`SET state ${state}`)  // firmware SET command for live fields
+  }, [send])
+
   const handleModeSelect = useCallback(async (modeId: number) => {
     setSelectedMode(modeId)
-    if (motorOn) await send(`SETMODE ${modeId}`)
-  }, [motorOn, send])
+    if (motorOn) await setMotorState(modeId)
+  }, [motorOn, setMotorState])
 
   const toggleMotor = useCallback(async () => {
     if (motorOn) {
-      await send('STOP')
+      await setMotorState(0)
       setMotorOn(false)
     } else {
-      await send(`SETMODE ${selectedMode}`)
+      await setMotorState(selectedMode)
       setMotorOn(true)
     }
-  }, [motorOn, selectedMode, send])
+  }, [motorOn, selectedMode, setMotorState])
 
   const handleCurrentChange = useCallback(async (v: number) => {
     setCurrentMa(v)

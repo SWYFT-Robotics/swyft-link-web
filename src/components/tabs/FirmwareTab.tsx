@@ -1,28 +1,59 @@
 import { useState, useEffect } from 'react'
 import { useMotorStore } from '../../store/motorStore'
-import { Upload, RefreshCw, AlertCircle, Info, CheckCircle } from 'lucide-react'
+import { flashFirmware, isDFUSupported, type DFUProgress } from '../../api/WebDFU'
+import { Upload, RefreshCw, AlertCircle, CheckCircle, Loader2, Zap, Info } from 'lucide-react'
 import clsx from 'clsx'
 
 export function FirmwareTab() {
-  const { send, firmwareVersion, firmwareBuildDate } = useMotorStore()
+  const { send, firmwareVersion, firmwareBuildDate, disconnect } = useMotorStore()
   const [firmwareFile, setFirmwareFile] = useState<File | null>(null)
-  const [dfuState, setDfuState] = useState<'idle' | 'sent' | 'done'>('idle')
+  const [dfuProgress, setDfuProgress] = useState<DFUProgress | null>(null)
+  const [dfuSent, setDfuSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => { send('VERSION') }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFirmwareFile(e.target.files?.[0] ?? null)
+    setDfuProgress(null)
+    setError(null)
   }
 
-  const handleDFU = async () => {
-    setDfuState('sent')
-    await send('DFU')
-    // Device will disconnect after ~500ms
-    setTimeout(() => setDfuState('done'), 2000)
+  const handleFlash = async () => {
+    if (!firmwareFile) return
+    setError(null)
+    setDfuProgress({ phase: 'connecting', progress: 0, message: 'Sending DFU command to device...' })
+    setDfuSent(false)
+
+    try {
+      // Step 1: Put device in DFU mode via serial
+      setDfuProgress({ phase: 'connecting', progress: 2, message: 'Sending DFU command...' })
+      await send('DFU')
+      setDfuSent(true)
+
+      // Step 2: Wait for device to enter DFU mode (it reboots)
+      setDfuProgress({ phase: 'connecting', progress: 5, message: 'Waiting for device to enter DFU mode...' })
+      await new Promise(r => setTimeout(r, 2500))
+
+      // Step 3: Disconnect serial (it's gone now anyway)
+      await disconnect()
+
+      // Step 4: Flash via WebUSB DFU
+      const binData = await firmwareFile.arrayBuffer()
+      await flashFirmware(binData, (p) => setDfuProgress(p))
+
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+      setDfuProgress(null)
+    }
   }
 
+  const isFlashing = dfuProgress !== null && dfuProgress.phase !== 'done' && dfuProgress.phase !== 'error'
+  const isDone = dfuProgress?.phase === 'done'
   const isSwyftFirmware = firmwareFile?.name.toLowerCase().startsWith('swyft_thunder')
   const warnFile = firmwareFile && !isSwyftFirmware
+  const webUsbSupported = isDFUSupported()
 
   return (
     <div className="space-y-4 max-w-lg">
@@ -46,17 +77,30 @@ export function FirmwareTab() {
         </div>
       </div>
 
-      {/* One-click update via DFU */}
+      {/* One-click browser DFU update */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <h3 className="font-semibold text-white mb-3">One-Click Firmware Update</h3>
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="w-4 h-4 text-sky-400" />
+          <h3 className="font-semibold text-white">Browser Firmware Update</h3>
+          {!webUsbSupported && (
+            <span className="ml-auto text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-0.5">
+              WebUSB requires Chrome/Edge
+            </span>
+          )}
+        </div>
 
-        {dfuState === 'idle' && (
+        {!isDone && !isFlashing && (
           <>
-            {/* File picker */}
+            <p className="text-xs text-slate-400 mb-3">
+              Flash firmware directly from the browser — no tools needed. Uses WebUSB to communicate with the STM32 DFU bootloader.
+            </p>
+
             <label className="flex items-center gap-3 p-3 bg-slate-800 border-2 border-dashed border-slate-700 rounded-xl cursor-pointer hover:border-sky-500/50 transition-colors group mb-3">
               <Upload className="w-5 h-5 text-slate-400 group-hover:text-sky-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <div className="text-sm text-slate-300">{firmwareFile ? firmwareFile.name : 'Choose firmware (.bin)'}</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-slate-300 truncate">
+                  {firmwareFile ? firmwareFile.name : 'Choose firmware (.bin)'}
+                </div>
                 {firmwareFile && <div className="text-xs text-slate-500">{(firmwareFile.size / 1024).toFixed(0)} KB</div>}
               </div>
               <input type="file" accept=".bin" onChange={handleFileSelect} className="hidden" />
@@ -65,60 +109,75 @@ export function FirmwareTab() {
             {warnFile && (
               <div className="flex gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg mb-3 text-sm text-amber-300">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>Unexpected filename — official files are named SWYFT_THUNDER_YYYYMMDD_*.bin</span>
+                <span>Unexpected filename. Official files are named SWYFT_THUNDER_YYYYMMDD_*.bin</span>
               </div>
             )}
 
-            <button onClick={handleDFU} disabled={!firmwareFile}
+            {error && (
+              <div className="flex gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-3 text-sm text-red-300">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold">Flash failed</div>
+                  <div className="font-mono text-xs mt-1 break-all">{error}</div>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleFlash}
+              disabled={!firmwareFile || !webUsbSupported}
               className={clsx('w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all',
-                firmwareFile ? 'bg-sky-500 hover:bg-sky-400 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                (firmwareFile && webUsbSupported)
+                  ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-lg shadow-sky-500/20'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
               )}>
-              <Upload className="w-4 h-4" />
-              Flash Firmware
+              <Zap className="w-4 h-4" />
+              {webUsbSupported ? 'Flash Firmware' : 'WebUSB required (Chrome/Edge)'}
             </button>
           </>
         )}
 
-        {dfuState === 'sent' && (
-          <div className="text-center py-4">
-            <div className="text-sky-400 font-medium mb-1">DFU command sent...</div>
-            <div className="text-slate-400 text-sm">Device is entering bootloader mode</div>
+        {isFlashing && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-sky-400 animate-spin flex-shrink-0" />
+              <div>
+                <div className="text-sm font-medium text-white capitalize">{dfuProgress?.phase}...</div>
+                <div className="text-xs text-slate-400">{dfuProgress?.message}</div>
+              </div>
+            </div>
+            <div className="w-full bg-slate-800 rounded-full h-2">
+              <div className="bg-sky-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${dfuProgress?.progress ?? 0}%` }} />
+            </div>
+            <div className="text-xs text-slate-500 text-right">{dfuProgress?.progress ?? 0}%</div>
           </div>
         )}
 
-        {dfuState === 'done' && (
+        {isDone && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm">
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              Device entered DFU mode! Now use dfu-util to flash.
+              {dfuProgress?.message}
             </div>
-            <div className="bg-slate-800 rounded-xl p-3 font-mono text-xs text-slate-300">
-              dfu-util -a 0 -d 0483:df11 -s 0x08000000:leave -D {firmwareFile?.name ?? 'firmware.bin'}
-            </div>
-            <button onClick={() => setDfuState('idle')} className="text-xs text-slate-500 hover:text-slate-300">
-              Start over
+            <button onClick={() => { setDfuProgress(null); setFirmwareFile(null) }}
+              className="text-xs text-sky-400 hover:text-sky-300">
+              Flash another file
             </button>
           </div>
         )}
       </div>
 
-      {/* Manual DFU instructions */}
+      {/* Manual DFU fallback */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Info className="w-4 h-4 text-sky-400" />
-          <h3 className="font-semibold text-white">Manual DFU Method</h3>
+          <Info className="w-4 h-4 text-slate-400" />
+          <h3 className="font-semibold text-slate-300 text-sm">Manual DFU (fallback)</h3>
         </div>
-        <ol className="space-y-2 text-sm text-slate-400">
-          {[
-            'Unplug the motor from all power',
-            'Hold the DFU button on the back',
-            'While holding, plug in USB-C',
-            'Release button after 2 seconds',
-            'Flash using SWYFT Link desktop app or dfu-util',
-          ].map((step, i) => (
+        <ol className="space-y-1.5 text-xs text-slate-500">
+          {['Unplug motor from power', 'Hold DFU button on back', 'Plug in USB-C while holding', 'Release after 2 seconds', 'Use dfu-util or SWYFT Link desktop app'].map((s, i) => (
             <li key={i} className="flex gap-2">
-              <span className="w-5 h-5 bg-slate-800 rounded-full flex items-center justify-center text-xs text-sky-400 flex-shrink-0 mt-0.5">{i + 1}</span>
-              {step}
+              <span className="text-sky-600 flex-shrink-0">{i + 1}.</span> {s}
             </li>
           ))}
         </ol>

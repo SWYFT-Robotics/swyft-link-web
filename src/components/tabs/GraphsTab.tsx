@@ -33,12 +33,19 @@ function Chart({ title, dataKey, color, unit, data }: {
 export function GraphsTab() {
   const { statusHistory } = useMotorStore()
 
+  const COLORS = {
+    speed: '#0ea5e9', current: '#10b981', voltage: '#f59e0b',
+    temp: '#ef4444', position: '#a855f7', swerve: '#f97316'
+  }
+
   const data = statusHistory.map((s, i) => ({
     t: i,
-    speed: s.speed,
-    current: s.current / 1000,
-    voltage: s.voltage,
-    temp: s.temperature,
+    speed: +s.speed.toFixed(1),
+    current: +(s.current / 1000).toFixed(2),
+    voltage: +s.voltage.toFixed(2),
+    temp: +s.temperature.toFixed(1),
+    position: s.position,
+    swerve: +s.swerveAngle.toFixed(1),
   }))
 
   if (data.length < 2) {
@@ -51,10 +58,12 @@ export function GraphsTab() {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Chart title="Speed" dataKey="speed" color={CHART_COLOR.speed} unit="RPM" data={data} />
-      <Chart title="Current" dataKey="current" color={CHART_COLOR.current} unit="A" data={data} />
-      <Chart title="Bus Voltage" dataKey="voltage" color={CHART_COLOR.voltage} unit="V" data={data} />
-      <Chart title="Temperature" dataKey="temp" color={CHART_COLOR.temp} unit="°C" data={data} />
+      <Chart title="Speed" dataKey="speed" color={COLORS.speed} unit="RPM" data={data} />
+      <Chart title="Current" dataKey="current" color={COLORS.current} unit="A" data={data} />
+      <Chart title="Bus Voltage" dataKey="voltage" color={COLORS.voltage} unit="V" data={data} />
+      <Chart title="Temperature" dataKey="temp" color={COLORS.temp} unit="°C" data={data} />
+      <Chart title="Motor Position" dataKey="position" color={COLORS.position} unit="cts" data={data} />
+      <Chart title="Analog Input (Swerve)" dataKey="swerve" color={COLORS.swerve} unit="°" data={data} />
     </div>
   )
 }

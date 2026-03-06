@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { SerialConnection, ConnectionState } from '../api/SerialConnection'
+import { setQueueConnection, enqueueCommand } from '../api/CommandQueue'
 
 export interface MotorStatus {
   state: number
@@ -162,12 +163,14 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
     try {
       set({ conn })
       await conn.connect()
-      // Request status and version on connect
-      await conn.send('VERSION')
-      await conn.send('CANSTATUS')
+      setQueueConnection(conn)
+      // Request version and status on connect (queued with 80ms spacing)
+      await enqueueCommand('VERSION')
+      await enqueueCommand('CANSTATUS')
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       const isCancel = msg.includes('No port selected') || msg.includes('AbortError') || msg.includes('cancelled')
+      setQueueConnection(null)
       set({
         conn: null,
         connectionState: 'disconnected',
@@ -177,33 +180,18 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   },
 
   disconnect: async () => {
+    setQueueConnection(null)
     await get().conn?.disconnect()
-    set({ conn: null, status: null, firmwareVersion: null, firmwareBuildDate: null })
+    set({ conn: null, status: null, statusHistory: [], firmwareVersion: null, firmwareBuildDate: null })
   },
 
-  _cmdQueue: [] as string[],
+  _cmdQueue: [],
   _cmdBusy: false,
 
   send: async (cmd) => {
-    const store = get()
-    if (!store.conn) return
+    if (!get().conn) return
     set(s => ({ log: [...s.log.slice(-499), `> ${cmd}`] }))
-    // Queue command with 60ms spacing to prevent USB CDC merging
-    store._cmdQueue.push(cmd)
-    if (!store._cmdBusy) {
-      set({ _cmdBusy: true } as Partial<MotorStore>)
-      const flush = async () => {
-        const q = get()._cmdQueue
-        while (q.length > 0) {
-          const next = q.shift()!
-          const c = get().conn
-          if (c) await c.send(next)
-          await new Promise(r => setTimeout(r, 60))
-        }
-        set({ _cmdBusy: false } as Partial<MotorStore>)
-      }
-      flush()
-    }
+    await enqueueCommand(cmd)
   },
 
   clearLog: () => set({ log: [] }),
