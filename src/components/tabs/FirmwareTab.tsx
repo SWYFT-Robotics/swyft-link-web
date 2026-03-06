@@ -216,6 +216,15 @@ export function FirmwareTab() {
         )}
       </div>
 
+      {/* Config reset warning */}
+      <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400">
+        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <span>
+          <strong>Flashing resets saved config.</strong> The DFU mass-erase wipes all flash including the config sector.
+          Note down your PID gains and settings on the Config tab before updating.
+        </span>
+      </div>
+
       {/* Manual DFU */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-3">

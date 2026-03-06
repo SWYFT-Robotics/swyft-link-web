@@ -157,17 +157,13 @@ export function ConfigTab() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
-        {/* Motor Setup — some fields are read-only (factory defaults / set by calibration) */}
+        {/* Motor Setup */}
         <Section title="Motor Setup">
-          <ReadOnly label="Motor Poles"      value={14}             hint="Hardcoded (14-pole motor)" />
-          <ReadOnly label="Encoder Bias"     value={c.biasEncoder}  hint="Updated by calibration (CALI)" />
-          <ReadOnly label="Voltage Min"      value={c.voltageMin}   unit="V" hint="Factory protection limit" />
-          <ReadOnly label="Voltage Max"      value={c.voltageMax}   unit="V" hint="Factory protection limit" />
-          <ReadOnly label="Temp Warning"     value={c.tempWarn}     unit="°C" hint="Factory thermal limit" />
-          <ReadOnly label="Temp Error"       value={c.tempErr}      unit="°C" hint="Factory thermal limit" />
-          <Field    label="CAN Device #"     param="can_device_num" value={c.canDeviceNum} onSet={set} hint="FRC CAN device number (0–62)" />
-          <Field    label="Nominal Voltage"  param="nominal_voltage" value={c.nominalVoltage} unit="V" step={0.1} decimals={1} onSet={set} />
-          <Field    label="Swerve Zero Offset" param="swerve_offset" value={c.swerveOffset} onSet={set} />
+          <ReadOnly label="Encoder Bias"       value={c.biasEncoder}  hint="Updated by calibration (CALI)" />
+          <ReadOnly label="Temp Warning"        value={c.tempWarn}     unit="°C" hint="Factory thermal limit" />
+          <ReadOnly label="Temp Error"          value={c.tempErr}      unit="°C" hint="Factory thermal limit" />
+          <Field    label="CAN Device #"        param="can_device_num" value={c.canDeviceNum} onSet={set} hint="FRC CAN device number (0–62)" />
+          <Field    label="Swerve Zero Offset"  param="swerve_offset"  value={c.swerveOffset} onSet={set} />
         </Section>
 
         {/* Protection & Motion */}
@@ -177,13 +173,6 @@ export function ConfigTab() {
           <Toggle label="Brake Mode"             param="brake_mode"          value={c.brakeMode}          onSet={set} hint="On = brake on stop  Off = coast" />
           <Field  label="Soft Limit Min"         param="pos_limit_min"       value={c.posLimitMin}        onSet={set} hint="Encoder ticks; min < max to enable" />
           <Field  label="Soft Limit Max"         param="pos_limit_max"       value={c.posLimitMax}        onSet={set} hint="Both 0 = disabled" />
-        </Section>
-
-        {/* T-Curve */}
-        <Section title="T-Curve Profile">
-          <Field label="Max Speed"       param="tc_speed"    value={c.tcSpeed}    onSet={set} hint="Encoder ticks/s (65536 = 1 rev/s)" />
-          <Field label="Acceleration"    param="tc_accel"    value={c.tcAccel}    onSet={set} hint="Ramp rate (ticks/s²)" />
-          <Field label="Max Pos Error"   param="tc_max_err"  value={c.tcMaxErr}   onSet={set} hint="Error ticks before fault" />
         </Section>
 
         {/* Calibration (advanced) */}

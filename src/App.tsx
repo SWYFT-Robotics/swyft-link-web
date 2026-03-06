@@ -66,33 +66,33 @@ export default function App() {
             </div>
             <div className="leading-none">
               <div className="font-bold text-white text-sm tracking-wide">SWYFT Link</div>
-              <div className="text-xs text-slate-500">Device Interface</div>
             </div>
           </div>
 
-          {/* Connection + LED status */}
-          <div className="flex items-center gap-2">
-            <div className={clsx('w-2 h-2 rounded-full flex-shrink-0', {
-              'bg-green-400 shadow-sm shadow-green-400': isConnected,
-              'bg-amber-400 animate-pulse': isConnecting,
-              'bg-slate-600': connectionState === 'disconnected',
-              'bg-red-400': connectionState === 'error',
-            })} />
-            {isConnected && status && (
-              <>
-                {/* Physical LED indicator - mirrors the actual on-device LED */}
-                <div
-                  className="w-3.5 h-3.5 rounded-full border border-white/20 flex-shrink-0"
-                  style={{ backgroundColor: status.ledColor, boxShadow: `0 0 7px 2px ${status.ledColor}99` }}
-                  title={`Device LED: ${status.ledColor}`}
-                />
-                <span className="text-xs text-slate-400">
+          {/* Device LED indicators (2 pixels, mirror on-device WS2812B) */}
+          {isConnected && status && (() => {
+            const running = status.state !== 0
+            const ledStyle = (size: string) => ({
+              backgroundColor: status.ledColor,
+              boxShadow: `0 0 9px 3px ${status.ledColor}bb`,
+              width: size, height: size,
+            })
+            return (
+              <div className="flex items-center gap-1.5">
+                <div className={clsx('rounded-full border border-white/15 flex-shrink-0', running && 'animate-pulse')}
+                  style={ledStyle('12px')} title="Device LED 1" />
+                <div className={clsx('rounded-full border border-white/15 flex-shrink-0', running && 'animate-pulse')}
+                  style={ledStyle('14px')} title="Device LED 2" />
+                <span className="text-xs text-slate-400 ml-1">
                   {status.voltage > 0.1 ? `${status.voltage.toFixed(1)}V · ` : ''}{status.temperature.toFixed(0)}°C
-                  {status.state !== 0 && ` · ${status.stateString}`}
+                  {running && ` · ${status.stateString}`}
                 </span>
-              </>
-            )}
-          </div>
+              </div>
+            )
+          })()}
+          {isConnecting && (
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+          )}
 
           <div className="ml-auto flex items-center gap-2">
             {/* CAN master badge */}

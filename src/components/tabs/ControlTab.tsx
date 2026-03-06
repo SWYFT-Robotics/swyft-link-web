@@ -107,18 +107,23 @@ function PidPanel({ mode, config, send }: {
 
   if (mode === 5) return (
     <div className="space-y-4">
+      {/* T-Curve profile — define the trapezoidal motion shape */}
       <div className="space-y-2">
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Position PID</div>
-        <PidRow label="Kp"       param="pid_pos_kp"      value={c.pidPosKp}      step={1}  decimals={0} onSet={set} />
-        <PidRow label="Ki"       param="pid_pos_ki"      value={c.pidPosKi}      step={1}  decimals={0} onSet={set} />
-        <PidRow label="Out Min"  param="pid_pos_out_min" value={c.pidPosOutMin}  step={10} decimals={0} onSet={set} />
-        <PidRow label="Out Max"  param="pid_pos_out_max" value={c.pidPosOutMax}  step={10} decimals={0} onSet={set} />
-      </div>
-      <div className="space-y-2 border-t border-slate-800 pt-3">
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">T-Curve Profile</div>
         <PidRow label="Max Speed"  param="tc_speed"    value={c.tcSpeed}    step={65536} decimals={0} onSet={set} />
         <PidRow label="Accel"      param="tc_accel"    value={c.tcAccel}    step={65536} decimals={0} onSet={set} />
         <PidRow label="Max Error"  param="tc_max_err"  value={c.tcMaxErr}   step={256}   decimals={0} onSet={set} />
+      </div>
+      {/* Position PID — T-Curve generates position targets; Position PID tracks them */}
+      <div className="space-y-2 border-t border-slate-800 pt-3">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Position PID</div>
+          <span className="text-xs text-slate-600 italic">used to track the generated trajectory</span>
+        </div>
+        <PidRow label="Kp"       param="pid_pos_kp"      value={c.pidPosKp}      step={1}  decimals={0} onSet={set} />
+        <PidRow label="Ki"       param="pid_pos_ki"      value={c.pidPosKi}      step={1}  decimals={0} onSet={set} />
+        <PidRow label="Out Min"  param="pid_pos_out_min" value={c.pidPosOutMin}  step={10} decimals={0} onSet={set} />
+        <PidRow label="Out Max"  param="pid_pos_out_max" value={c.pidPosOutMax}  step={10} decimals={0} onSet={set} />
       </div>
     </div>
   )
