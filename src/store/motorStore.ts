@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { SerialConnection, ConnectionState } from '../api/SerialConnection'
 import { setQueueConnection, enqueueCommand } from '../api/CommandQueue'
+import { flashFirmware as webDFUFlash, isDFUSupported, type DFUProgress } from '../api/WebDFU'
 
 export interface MotorStatus {
   state: number
@@ -88,6 +89,8 @@ function parseCanStatus(line: string): Partial<CanStatus> | null {
   return result
 }
 
+export { type DFUProgress }
+
 interface MotorStore {
   conn: SerialConnection | null
   connectionState: ConnectionState
@@ -101,10 +104,21 @@ interface MotorStore {
   _cmdQueue: string[]
   _cmdBusy: boolean
 
+  // DFU flashing state — persists through serial disconnect
+  dfuProgress: DFUProgress | null
+  dfuError: string | null
+  dfuSupported: boolean
+
   connect: () => Promise<void>
   disconnect: () => Promise<void>
   send: (cmd: string) => Promise<void>
   clearLog: () => void
+
+  /** Send DFU command via serial, then flash the file via WebUSB */
+  flashFirmwareFromSerial: (file: File) => Promise<void>
+  /** Device is already in DFU bootloader — flash directly via WebUSB */
+  flashFirmwareDirect: (file: File) => Promise<void>
+  clearDFU: () => void
 }
 
 export const useMotorStore = create<MotorStore>((set, get) => ({
@@ -123,6 +137,9 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   firmwareBuildDate: null,
   _cmdQueue: [],
   _cmdBusy: false,
+  dfuProgress: null,
+  dfuError: null,
+  dfuSupported: isDFUSupported(),
 
   connectError: null as string | null,
 
@@ -196,4 +213,39 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   },
 
   clearLog: () => set({ log: [] }),
+
+  flashFirmwareFromSerial: async (file: File) => {
+    set({ dfuProgress: { phase: 'connecting', progress: 0, message: 'Sending DFU command to device...' }, dfuError: null })
+    try {
+      // Send DFU command while still connected
+      const conn = get().conn
+      if (conn) {
+        await get().send('DFU')
+        // Disconnect serial — device is about to reset into DFU mode
+        await get().disconnect()
+      }
+      // Wait for the STM32 to reset and re-enumerate as DFU device
+      set({ dfuProgress: { phase: 'connecting', progress: 5, message: 'Waiting for device to enter DFU mode (~1.5s)...' } })
+      await new Promise(r => setTimeout(r, 1500))
+      // Open WebUSB device picker — user selects STM32 BOOTLOADER
+      set({ dfuProgress: { phase: 'connecting', progress: 10, message: 'Select "STM32 BOOTLOADER" in the browser dialog...' } })
+      const binData = await file.arrayBuffer()
+      await webDFUFlash(binData, (p) => set({ dfuProgress: p }))
+    } catch (e) {
+      set({ dfuError: e instanceof Error ? e.message : String(e), dfuProgress: null })
+    }
+  },
+
+  flashFirmwareDirect: async (file: File) => {
+    set({ dfuProgress: { phase: 'connecting', progress: 0, message: 'Connecting to DFU device...' }, dfuError: null })
+    try {
+      set({ dfuProgress: { phase: 'connecting', progress: 5, message: 'Select "STM32 BOOTLOADER" in the browser dialog...' } })
+      const binData = await file.arrayBuffer()
+      await webDFUFlash(binData, (p) => set({ dfuProgress: p }))
+    } catch (e) {
+      set({ dfuError: e instanceof Error ? e.message : String(e), dfuProgress: null })
+    }
+  },
+
+  clearDFU: () => set({ dfuProgress: null, dfuError: null }),
 }))
