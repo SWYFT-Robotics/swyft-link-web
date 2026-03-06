@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useMotorStore } from './store/motorStore'
 import { ControlTab } from './components/tabs/ControlTab'
 import { CanTab } from './components/tabs/CanTab'
@@ -7,13 +7,15 @@ import { LogTab } from './components/tabs/LogTab'
 import { GraphsTab } from './components/tabs/GraphsTab'
 import { InputTab } from './components/tabs/InputTab'
 import { AboutTab } from './components/tabs/AboutTab'
+import { ConfigTab } from './components/tabs/ConfigTab'
 import { SerialConnection } from './api/SerialConnection'
-import { Zap, Wifi, WifiOff, Loader2, Radio, Terminal, Cpu, AlertCircle, LineChart, Sliders, Info, Upload, CheckCircle, ChevronDown, ChevronUp, Usb } from 'lucide-react'
+import { Zap, Wifi, WifiOff, Loader2, Radio, Terminal, Cpu, AlertCircle, LineChart, Sliders, Info, Upload, CheckCircle, ChevronDown, ChevronUp, Usb, Settings } from 'lucide-react'
 import clsx from 'clsx'
 
 const TABS = [
   { id: 'control', label: 'Control', icon: Zap },
   { id: 'graphs', label: 'Graphs', icon: LineChart },
+  { id: 'config', label: 'Config', icon: Settings },
   { id: 'can', label: 'CAN', icon: Radio },
   { id: 'input', label: 'Input', icon: Sliders },
   { id: 'firmware', label: 'Firmware', icon: Cpu },
@@ -25,11 +27,18 @@ type TabId = typeof TABS[number]['id']
 
 const isSupported = SerialConnection.isSupported()
 
+interface FwEntry { id: string; name: string; file: string; version: string; date: string }
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('control')
   const [recoverOpen, setRecoverOpen] = useState(false)
   const [recoverFile, setRecoverFile] = useState<File | null>(null)
+  const [firmwareList, setFirmwareList] = useState<FwEntry[]>([])
   const recoverInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetch('./firmware/manifest.json').then(r => r.json()).then(d => setFirmwareList(d.devices ?? [])).catch(() => {})
+  }, [])
 
   const {
     connectionState, status, connectError, connect, disconnect,
@@ -62,8 +71,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Connection status dot */}
-          <div className="flex items-center gap-1.5">
+          {/* Connection + LED status */}
+          <div className="flex items-center gap-2">
             <div className={clsx('w-2 h-2 rounded-full flex-shrink-0', {
               'bg-green-400 shadow-sm shadow-green-400': isConnected,
               'bg-amber-400 animate-pulse': isConnecting,
@@ -71,10 +80,18 @@ export default function App() {
               'bg-red-400': connectionState === 'error',
             })} />
             {isConnected && status && (
-              <span className="text-xs text-slate-400">
-                {status.voltage > 0.1 ? `${status.voltage.toFixed(1)}V · ` : ''}{status.temperature.toFixed(0)}°C
-                {status.state !== 0 && ` · ${status.stateString}`}
-              </span>
+              <>
+                {/* Physical LED indicator - mirrors the actual on-device LED */}
+                <div
+                  className="w-3.5 h-3.5 rounded-full border border-white/20 flex-shrink-0"
+                  style={{ backgroundColor: status.ledColor, boxShadow: `0 0 7px 2px ${status.ledColor}99` }}
+                  title={`Device LED: ${status.ledColor}`}
+                />
+                <span className="text-xs text-slate-400">
+                  {status.voltage > 0.1 ? `${status.voltage.toFixed(1)}V · ` : ''}{status.temperature.toFixed(0)}°C
+                  {status.state !== 0 && ` · ${status.stateString}`}
+                </span>
+              </>
             )}
           </div>
 
@@ -256,14 +273,35 @@ export default function App() {
                     </ol>
                   </div>
 
-                  {/* File picker */}
+                  {/* Firmware list from manifest */}
+                  {firmwareList.length > 0 && (
+                    <div className="space-y-1.5">
+                      {firmwareList.map(fw => (
+                        <button key={fw.id} onClick={async () => {
+                          const resp = await fetch(`./firmware/${fw.file}`)
+                          const blob = await resp.blob()
+                          setRecoverFile(new File([blob], fw.file, { type: 'application/octet-stream' }))
+                        }}
+                          className={clsx('w-full flex items-center gap-3 p-2 rounded-lg border transition-colors text-left',
+                            recoverFile?.name === fw.file ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-slate-800 border-slate-700 hover:border-slate-600 text-slate-300')}>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium truncate">{fw.name}</div>
+                            <div className="text-xs text-slate-500">{fw.version} · {fw.date}</div>
+                          </div>
+                          {recoverFile?.name === fw.file && <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Custom file picker */}
                   <label className="flex items-center gap-3 p-3 bg-slate-800 border-2 border-dashed border-slate-700 rounded-xl cursor-pointer hover:border-sky-500/50 transition-colors group">
                     <Upload className="w-4 h-4 text-slate-400 group-hover:text-sky-400 flex-shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="text-xs text-slate-300 truncate">
-                        {recoverFile ? recoverFile.name : 'Choose firmware (.bin)'}
+                        {recoverFile && !firmwareList.some(fw => fw.file === recoverFile.name) ? recoverFile.name : 'Or choose custom .bin file…'}
                       </div>
-                      {recoverFile && <div className="text-xs text-slate-500">{(recoverFile.size / 1024).toFixed(0)} KB</div>}
+                      {recoverFile && !firmwareList.some(fw => fw.file === recoverFile.name) && <div className="text-xs text-slate-500">{(recoverFile.size / 1024).toFixed(0)} KB</div>}
                     </div>
                     <input
                       ref={recoverInputRef}
@@ -345,6 +383,7 @@ export default function App() {
           <div className="flex-1 pb-4">
             {activeTab === 'control' && <ControlTab />}
             {activeTab === 'graphs' && <GraphsTab />}
+            {activeTab === 'config' && <ConfigTab />}
             {activeTab === 'can' && <CanTab />}
             {activeTab === 'input' && <InputTab />}
             {activeTab === 'firmware' && <FirmwareTab />}

@@ -3,6 +3,35 @@ import { SerialConnection, ConnectionState } from '../api/SerialConnection'
 import { setQueueConnection, enqueueCommand } from '../api/CommandQueue'
 import { flashFirmware as webDFUFlash, isDFUSupported, type DFUProgress } from '../api/WebDFU'
 
+export interface MotorConfig {
+  // Motor setup
+  poles: number
+  biasEncoder: number
+  biasPos: number
+  swerveOffset: number
+  nominalVoltage: number
+  voltageMin: number
+  voltageMax: number
+  tempWarn: number
+  tempErr: number
+  // PIDs
+  pidPosKp: number; pidPosKi: number; pidPosOutMin: number; pidPosOutMax: number
+  pidSpdKp: number; pidSpdKi: number; pidSpdOutMin: number; pidSpdOutMax: number
+  pidIsqKp: number; pidIsqKi: number; pidIsqOutMin: number; pidIsqOutMax: number
+  pidIsdKp: number; pidIsdKi: number; pidIsdOutMin: number; pidIsdOutMax: number
+  // Calibration
+  caliCurrent: number; caliAngleElec: number; caliAngleSpeed: number
+  // T-curve
+  tcSpeed: number; tcAccel: number; tcMaxErr: number
+  // Protection & extras
+  peakCurThresholdA: number   // amps
+  peakCurDurationMs: number
+  canDeviceNum: number
+  brakeMode: boolean
+  posLimitMin: number
+  posLimitMax: number
+}
+
 export interface MotorStatus {
   state: number
   stateString: string
@@ -98,6 +127,8 @@ interface MotorStore {
   status: MotorStatus | null
   statusHistory: MotorStatus[]
   canStatus: CanStatus
+  config: MotorConfig | null
+  configLoading: boolean
   log: string[]
   firmwareVersion: string | null
   firmwareBuildDate: string | null
@@ -113,12 +144,54 @@ interface MotorStore {
   disconnect: () => Promise<void>
   send: (cmd: string) => Promise<void>
   clearLog: () => void
+  loadConfig: () => Promise<void>
 
   /** Send DFU command via serial, then flash the file via WebUSB */
   flashFirmwareFromSerial: (file: File) => Promise<void>
   /** Device is already in DFU bootloader — flash directly via WebUSB */
   flashFirmwareDirect: (file: File) => Promise<void>
   clearDFU: () => void
+}
+
+/* Accumulate partial config lines until #CEND */
+let _configPartial: Partial<MotorConfig> = {}
+
+function parseConfigLine(line: string): Partial<MotorConfig> | null {
+  const tag = line.substring(0, 4)
+  const nums = line.substring(4).split(',').map(Number)
+  if (tag === '#C1:') {
+    const [poles, biasEncoder, biasPos, swerveOffset, voltX100, voltMin, voltMax, tempWarn, tempErr] = nums
+    return { poles, biasEncoder, biasPos, swerveOffset, nominalVoltage: voltX100 / 100, voltageMin: voltMin, voltageMax: voltMax, tempWarn, tempErr }
+  }
+  if (tag === '#C2:') {
+    const [kp, ki, outMin, outMax] = nums
+    return { pidPosKp: kp, pidPosKi: ki, pidPosOutMin: outMin, pidPosOutMax: outMax }
+  }
+  if (tag === '#C3:') {
+    const [kp, ki, outMin, outMax] = nums
+    return { pidSpdKp: kp / 10000, pidSpdKi: ki / 1000, pidSpdOutMin: outMin, pidSpdOutMax: outMax }
+  }
+  if (tag === '#C4:') {
+    const [kp, ki, outMin, outMax] = nums
+    return { pidIsqKp: kp / 10000, pidIsqKi: ki / 1000, pidIsqOutMin: outMin, pidIsqOutMax: outMax }
+  }
+  if (tag === '#C5:') {
+    const [kp, ki, outMin, outMax] = nums
+    return { pidIsdKp: kp / 10000, pidIsdKi: ki / 1000, pidIsdOutMin: outMin, pidIsdOutMax: outMax }
+  }
+  if (tag === '#C6:') {
+    const [caliCurrent, angleElecX1000, angleSpeedX1000] = nums
+    return { caliCurrent, caliAngleElec: angleElecX1000 / 1000, caliAngleSpeed: angleSpeedX1000 / 1000 }
+  }
+  if (tag === '#C7:') {
+    const [tcSpeed, tcAccel, tcMaxErr] = nums
+    return { tcSpeed, tcAccel, tcMaxErr }
+  }
+  if (tag === '#C8:') {
+    const [peakMa, peakDur, canDev, brakeInt, posMin, posMax] = nums
+    return { peakCurThresholdA: peakMa / 1000, peakCurDurationMs: peakDur, canDeviceNum: canDev, brakeMode: brakeInt !== 0, posLimitMin: posMin, posLimitMax: posMax }
+  }
+  return null
 }
 
 export const useMotorStore = create<MotorStore>((set, get) => ({
@@ -132,6 +205,8 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
     heartbeatValid: false, heartbeatTimeout: false,
     robotEnabled: false, canMaster: false
   },
+  config: null,
+  configLoading: false,
   log: [],
   firmwareVersion: null,
   firmwareBuildDate: null,
@@ -161,6 +236,17 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
         const can = parseCanStatus(line)
         if (can) {
           set(s => ({ canStatus: { ...s.canStatus, ...can } }))
+          return
+        }
+
+        // Config lines accumulate until #CEND
+        if (line.startsWith('#C') && line.length > 4 && line[3] === ':') {
+          const partial = parseConfigLine(line)
+          if (partial) { _configPartial = { ..._configPartial, ...partial }; return }
+        }
+        if (line === '#CEND') {
+          set({ config: _configPartial as MotorConfig, configLoading: false })
+          _configPartial = {}
           return
         }
 
@@ -200,7 +286,13 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   disconnect: async () => {
     setQueueConnection(null)
     await get().conn?.disconnect()
-    set({ conn: null, status: null, statusHistory: [], firmwareVersion: null, firmwareBuildDate: null })
+    set({ conn: null, status: null, statusHistory: [], firmwareVersion: null, firmwareBuildDate: null, config: null })
+  },
+
+  loadConfig: async () => {
+    _configPartial = {}
+    set({ configLoading: true })
+    await get().send('CONFIG')
   },
 
   _cmdQueue: [],
