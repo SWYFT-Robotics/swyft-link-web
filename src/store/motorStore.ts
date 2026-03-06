@@ -244,7 +244,7 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
           const partial = parseConfigLine(line)
           if (partial) { _configPartial = { ..._configPartial, ...partial }; return }
         }
-        if (line === '#CEND') {
+        if (line.startsWith('#CEND') || line === '#CEND') {
           set({ config: _configPartial as MotorConfig, configLoading: false })
           _configPartial = {}
           return
@@ -293,6 +293,10 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
     _configPartial = {}
     set({ configLoading: true })
     await get().send('CONFIG')
+    // Auto-clear loading state after 6s in case #CEND is never received
+    setTimeout(() => {
+      if (get().configLoading) set({ configLoading: false })
+    }, 6000)
   },
 
   _cmdQueue: [],

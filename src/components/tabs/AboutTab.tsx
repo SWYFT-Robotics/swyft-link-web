@@ -1,5 +1,5 @@
 import { useMotorStore } from '../../store/motorStore'
-import { ExternalLink, Github, Zap } from 'lucide-react'
+import { ExternalLink, Github, Zap, WifiOff, Monitor } from 'lucide-react'
 
 export function AboutTab() {
   const { firmwareVersion, firmwareBuildDate, send } = useMotorStore()
@@ -58,6 +58,41 @@ export function AboutTab() {
           and <strong className="text-white">Opera 75+</strong>.
           Firefox and Safari do not yet support WebSerial.
         </p>
+      </div>
+
+      {/* Offline / local installation */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <WifiOff className="w-4 h-4 text-slate-400" />
+          <h3 className="font-semibold text-white">Offline / Local Installation</h3>
+        </div>
+        <div className="space-y-3 text-sm text-slate-400">
+          <div>
+            <div className="flex items-center gap-1.5 text-slate-300 font-medium mb-1">
+              <Monitor className="w-3.5 h-3.5" /> Install as Desktop App (PWA)
+            </div>
+            <p className="text-xs leading-relaxed">
+              In Chrome or Edge, click the <strong className="text-slate-200">⊕ Install</strong> icon in the address bar
+              (or <em>⋮ menu → Install SWYFT Link</em>). The app is saved locally and works without an internet connection.
+              WebSerial always communicates directly with your USB hardware — no cloud involved.
+            </p>
+          </div>
+          <div className="border-t border-slate-800 pt-3">
+            <div className="text-slate-300 font-medium mb-1">Run locally from source</div>
+            <div className="bg-slate-800 rounded-lg p-2.5 font-mono text-xs text-slate-300 space-y-1">
+              <div><span className="text-slate-500"># clone and install</span></div>
+              <div>git clone https://github.com/SWYFT-Robotics/swyft-link-web</div>
+              <div>cd swyft-link-web &amp;&amp; npm install</div>
+              <div className="mt-1"><span className="text-slate-500"># dev server (live reload)</span></div>
+              <div>npm run dev</div>
+              <div className="mt-1"><span className="text-slate-500"># or build + serve static files</span></div>
+              <div>npm run build &amp;&amp; npx serve dist</div>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Node.js 18+ required. Both methods work fully offline for USB connections.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Diagnostics */}

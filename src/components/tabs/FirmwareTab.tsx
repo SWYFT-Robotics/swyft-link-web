@@ -1,10 +1,37 @@
 import { useState, useEffect } from 'react'
 import { useMotorStore } from '../../store/motorStore'
 import { isDFUSupported } from '../../api/WebDFU'
-import { Upload, RefreshCw, AlertCircle, CheckCircle, Loader2, Zap, Info, Usb, Download } from 'lucide-react'
+import { Upload, RefreshCw, AlertCircle, CheckCircle, Loader2, Zap, Info, Usb, Download, ArrowUpCircle } from 'lucide-react'
 import clsx from 'clsx'
 
 interface FirmwareEntry { id: string; name: string; description: string; file: string; version: string; date: string }
+
+/** Parse "__DATE__ __TIME__" string from firmware (e.g. "Mar  6 2026 12:26:30") */
+function parseFirmwareBuildDate(s: string): Date | null {
+  if (!s) return null
+  // Normalize double-spaces: "Mar  6" → "Mar 6"
+  const clean = s.replace(/\s+/g, ' ').trim()
+  const d = new Date(clean)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function timeAgo(date: Date): string {
+  const diff = Date.now() - date.getTime()
+  const mins  = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days  = Math.floor(diff / 86400000)
+  if (mins  <  2) return 'just now'
+  if (hours <  1) return `${mins}m ago`
+  if (days  <  1) return `${hours}h ${mins % 60}m ago`
+  if (days  <  7) return `${days}d ago`
+  return date.toLocaleDateString()
+}
+
+/** Returns true if running version matches bundled version (ignores -dirty suffix) */
+function versionsMatch(running: string | null, bundled: string): boolean {
+  if (!running) return false
+  return running.replace(/-dirty$/, '') === bundled
+}
 
 export function FirmwareTab() {
   const { send, firmwareVersion, firmwareBuildDate, dfuProgress, dfuError, clearDFU, flashFirmwareFromSerial, flashFirmwareDirect } = useMotorStore()
@@ -39,8 +66,25 @@ export function FirmwareTab() {
     clearDFU()
   }
 
+  const buildDate   = parseFirmwareBuildDate(firmwareBuildDate ?? '')
+  const isUpToDate  = firmwareList.length > 0 && versionsMatch(firmwareVersion, firmwareList[0]?.version ?? '')
+  const needsUpdate = firmwareVersion !== null && firmwareList.length > 0 && !isUpToDate
+
   return (
     <div className="space-y-4 max-w-lg">
+      {/* Version mismatch banner */}
+      {needsUpdate && (
+        <div className="flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-300">
+          <ArrowUpCircle className="w-5 h-5 flex-shrink-0" />
+          <div>
+            <div className="font-semibold">Firmware update available</div>
+            <div className="text-xs text-amber-400/70 mt-0.5">
+              Running <span className="font-mono">{firmwareVersion}</span> — latest bundled is <span className="font-mono">{firmwareList[0]?.version}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Current firmware */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
         <div className="flex justify-between items-start">
@@ -48,8 +92,20 @@ export function FirmwareTab() {
           <button onClick={() => send('VERSION')} className="text-slate-400 hover:text-white transition-colors p-1"><RefreshCw className="w-4 h-4" /></button>
         </div>
         <div className="mt-3 space-y-2 text-sm">
-          <div className="flex justify-between"><span className="text-slate-400">Version</span><span className="font-mono text-white">{firmwareVersion ?? '—'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-400">Build Date</span><span className="font-mono text-white text-xs">{firmwareBuildDate ?? '—'}</span></div>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-400">Version</span>
+            <div className="flex items-center gap-2">
+              {isUpToDate && <span className="text-xs px-1.5 py-0.5 bg-green-500/15 text-green-400 border border-green-500/25 rounded font-medium">Up to date</span>}
+              <span className="font-mono text-white">{firmwareVersion ?? '—'}</span>
+            </div>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-400">Build</span>
+            <div className="text-right">
+              <div className="font-mono text-white text-xs">{firmwareBuildDate ?? '—'}</div>
+              {buildDate && <div className="text-xs text-slate-500">{timeAgo(buildDate)}</div>}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -64,7 +120,10 @@ export function FirmwareTab() {
             {firmwareList.map(fw => (
               <div key={fw.id} className="flex items-center gap-3 p-2.5 bg-slate-800 rounded-lg">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">{fw.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium text-white truncate">{fw.name}</div>
+                    <span className="text-xs px-1.5 py-0.5 bg-sky-500/15 text-sky-400 border border-sky-500/25 rounded font-medium flex-shrink-0">Latest</span>
+                  </div>
                   <div className="text-xs text-slate-400">{fw.version} · {fw.date}</div>
                 </div>
                 <div className="flex gap-1.5 flex-shrink-0">
