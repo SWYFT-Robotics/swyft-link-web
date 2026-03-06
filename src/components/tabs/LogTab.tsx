@@ -24,12 +24,14 @@ export function LogTab() {
   }
 
   const lineColor = (line: string) => {
-    if (line.startsWith('>')) return 'text-sky-400'
-    if (line.includes('Error') || line.includes('ERR') || line.includes('✗')) return 'text-red-400'
-    if (line.includes('✓') || line.includes('Success') || line.includes('OK:')) return 'text-green-400'
-    if (line.includes('⚠') || line.includes('WARN')) return 'text-amber-400'
-    if (line.startsWith('#S:')) return 'text-slate-500'
-    return 'text-slate-300'
+    if (line.startsWith('> ')) return 'text-sky-400'
+    if (line.includes('ERR:') || line.includes('Error') || line.includes('✗')) return 'text-red-400'
+    if (line.includes('OK:') || line.includes('✓') || line.includes('done')) return 'text-green-400'
+    if (line.includes('WARN') || line.includes('⚠')) return 'text-amber-400'
+    if (line.startsWith('< #S:')) return 'text-slate-600'
+    if (line.startsWith('< #')) return 'text-slate-400'
+    if (line.startsWith('< ')) return 'text-slate-300'
+    return 'text-slate-400'
   }
 
   return (

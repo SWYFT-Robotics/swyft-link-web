@@ -92,10 +92,13 @@ interface MotorStore {
   connectionState: ConnectionState
   connectError: string | null
   status: MotorStatus | null
+  statusHistory: MotorStatus[]
   canStatus: CanStatus
   log: string[]
   firmwareVersion: string | null
   firmwareBuildDate: string | null
+  _cmdQueue: string[]
+  _cmdBusy: boolean
 
   connect: () => Promise<void>
   disconnect: () => Promise<void>
@@ -108,6 +111,7 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   connectionState: 'disconnected',
   connectError: null,
   status: null,
+  statusHistory: [],
   canStatus: {
     deviceType: 2, manufacturer: 18, deviceNumber: 0,
     heartbeatValid: false, heartbeatTimeout: false,
@@ -116,6 +120,8 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   log: [],
   firmwareVersion: null,
   firmwareBuildDate: null,
+  _cmdQueue: [],
+  _cmdBusy: false,
 
   connectError: null as string | null,
 
@@ -126,7 +132,13 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
       onStateChange: (connectionState) => set({ connectionState }),
       onData: (line) => {
         const status = parseStatus(line)
-        if (status) { set({ status }); return }
+        if (status) {
+          set(s => ({
+            status,
+            statusHistory: [...s.statusHistory.slice(-299), { ...status, ts: Date.now() } as MotorStatus & { ts: number }]
+          }))
+          return
+        }
 
         const can = parseCanStatus(line)
         if (can) {
@@ -169,11 +181,29 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
     set({ conn: null, status: null, firmwareVersion: null, firmwareBuildDate: null })
   },
 
+  _cmdQueue: [] as string[],
+  _cmdBusy: false,
+
   send: async (cmd) => {
-    const { conn } = get()
-    if (!conn) return
+    const store = get()
+    if (!store.conn) return
     set(s => ({ log: [...s.log.slice(-499), `> ${cmd}`] }))
-    await conn.send(cmd)
+    // Queue command with 60ms spacing to prevent USB CDC merging
+    store._cmdQueue.push(cmd)
+    if (!store._cmdBusy) {
+      set({ _cmdBusy: true } as Partial<MotorStore>)
+      const flush = async () => {
+        const q = get()._cmdQueue
+        while (q.length > 0) {
+          const next = q.shift()!
+          const c = get().conn
+          if (c) await c.send(next)
+          await new Promise(r => setTimeout(r, 60))
+        }
+        set({ _cmdBusy: false } as Partial<MotorStore>)
+      }
+      flush()
+    }
   },
 
   clearLog: () => set({ log: [] }),

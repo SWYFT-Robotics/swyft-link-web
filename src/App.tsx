@@ -4,15 +4,21 @@ import { ControlTab } from './components/tabs/ControlTab'
 import { CanTab } from './components/tabs/CanTab'
 import { FirmwareTab } from './components/tabs/FirmwareTab'
 import { LogTab } from './components/tabs/LogTab'
+import { GraphsTab } from './components/tabs/GraphsTab'
+import { InputTab } from './components/tabs/InputTab'
+import { AboutTab } from './components/tabs/AboutTab'
 import { SerialConnection } from './api/SerialConnection'
-import { Zap, Wifi, WifiOff, Loader2, Radio, Terminal, Cpu, AlertCircle } from 'lucide-react'
+import { Zap, Wifi, WifiOff, Loader2, Radio, Terminal, Cpu, AlertCircle, LineChart, Sliders, Info } from 'lucide-react'
 import clsx from 'clsx'
 
 const TABS = [
   { id: 'control', label: 'Control', icon: Zap },
-  { id: 'can', label: 'CAN Bus', icon: Radio },
+  { id: 'graphs', label: 'Graphs', icon: LineChart },
+  { id: 'can', label: 'CAN', icon: Radio },
+  { id: 'input', label: 'Input', icon: Sliders },
   { id: 'firmware', label: 'Firmware', icon: Cpu },
   { id: 'log', label: 'Log', icon: Terminal },
+  { id: 'about', label: 'About', icon: Info },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -193,9 +199,12 @@ export default function App() {
           {/* Tab content */}
           <div className="flex-1 pb-4">
             {activeTab === 'control' && <ControlTab />}
+            {activeTab === 'graphs' && <GraphsTab />}
             {activeTab === 'can' && <CanTab />}
+            {activeTab === 'input' && <InputTab />}
             {activeTab === 'firmware' && <FirmwareTab />}
             {activeTab === 'log' && <LogTab />}
+            {activeTab === 'about' && <AboutTab />}
           </div>
         </div>
       )}
