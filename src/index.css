@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hard-code background so it's instant before Tailwind loads */
+html, body {
+  background-color: #020617;
+  color: #f1f5f9;
+  margin: 0;
+  min-height: 100vh;
+}
+
 @layer base {
   html { color-scheme: dark; }
   body { @apply bg-slate-950 text-slate-100 font-sans antialiased; }

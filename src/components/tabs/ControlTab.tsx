@@ -25,16 +25,15 @@ function Slider({ label, unit, value, min, max, onChange }:
     <div className="space-y-3">
       <div className="flex justify-between items-baseline">
         <span className="text-sm font-medium text-slate-300">{label}</span>
-        <span className={`font-mono text-2xl font-bold text-${color}-400`}>{value.toFixed(0)} <span className="text-sm text-slate-400">{unit}</span></span>
+        <span className="font-mono text-2xl font-bold text-sky-400">{value.toFixed(0)} <span className="text-sm text-slate-400">{unit}</span></span>
       </div>
       <input
         type="range" min={min} max={max} value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-700"
-        style={{ accentColor: `var(--tw-${color})` }}
+        className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-700 accent-sky-500"
       />
       <div className="flex justify-between text-xs text-slate-500">
-        <span>{min}</span><span>{max}</span>
+        <span>{min}</span><span>0</span><span>{max}</span>
       </div>
     </div>
   )
