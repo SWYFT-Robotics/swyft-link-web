@@ -1,31 +1,43 @@
-# SWYFT Link Web
+# SWYFT Link
 
-Browser-based interface for the SWYFT Thunder Motor Controller.  
-No installation required — works in Chrome, Edge, and Opera using the **WebSerial API**.
+Browser-based interface for SWYFT Robotics devices — motor controllers, sensors, and more.  
+No installation required. Works in Chrome, Edge, and Opera via the **WebSerial API**.
 
 ## Live App
 
-🌐 **[app.swyftrobotics.com](https://app.swyftrobotics.com)** *(deploy to GitHub Pages)*
+🌐 **[https://swyft-robotics.github.io/swyft-link-web/](https://swyft-robotics.github.io/swyft-link-web/)**
+
+## Compatible Devices
+
+- ⚡ **SWYFT Thunder** — Brushless motor controller
+- 🔧 More SWYFT sensors and devices coming soon
 
 ## Features
 
-- 🔌 WebSerial — direct USB-CDC connection, no drivers needed
-- ⚡ Real-time motor status (voltage, temperature, speed, position, current)
-- 🎛 Motor control with sliders (Current / Speed / Position / T-Curve)
-- 📡 CAN Bus status and robot state
-- 🔧 Firmware information and DFU update
+- 🔌 Direct USB connection — no drivers, no install, just plug in and open the URL
+- ⚡ Real-time device status (voltage, temperature, speed, position, current)
+- 🎛 Motor control with live sliders (Current / Speed / Position / T-Curve)
+- 📡 FRC CAN Bus status and robot enable state
+- 🔧 Firmware information
 - 📋 Live log console with quick commands
-- 📱 PWA — installable as a desktop/mobile app
+- Works on **Windows, Mac, Linux, ChromeOS** — anything with a Chromium browser
 
 ## Browser Support
 
-| Browser | Support |
-|---------|---------|
-| Chrome 89+ | ✅ Full |
-| Edge 89+ | ✅ Full |
-| Opera 75+ | ✅ Full |
-| Firefox | ❌ WebSerial not supported |
-| Safari | ❌ WebSerial not supported |
+| Browser | Supported |
+|---------|-----------|
+| Chrome 89+ | ✅ |
+| Edge 89+ | ✅ |
+| Opera 75+ | ✅ |
+| Firefox | ❌ (WebSerial not yet supported) |
+| Safari | ❌ (WebSerial not yet supported) |
+
+## How to Use
+
+1. Plug your SWYFT device in via USB-C
+2. Open the app in Chrome or Edge
+3. Click **Connect Device** and select the COM port
+4. Done!
 
 ## Development
 
@@ -34,14 +46,10 @@ npm install
 npm run dev
 ```
 
-## Build & Deploy
+## Deployment
+
+Every push to `main` auto-deploys via GitHub Actions to GitHub Pages.
 
 ```bash
-npm run build
-# Deploy dist/ to GitHub Pages or any static host
+npm run build   # builds to dist/
 ```
-
-## Protocol
-
-Communicates over USB CDC serial at 115200 baud using the SWYFT text protocol.  
-Future versions will use the unified SWYFT binary protocol (same as CAN).
